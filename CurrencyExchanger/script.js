@@ -1,74 +1,97 @@
-const BASE_URL =
-  "https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies";
-const dropdowns = document.querySelectorAll(".dropdown select");
-const btn = document.querySelector("#btn");
-const fromCurr = document.querySelector(".from select");
-const toCurr = document.querySelector(".to select");
+const API_KEY = "5844ab730382372bbcee9cf3";
+const API_URL = `https://v6.exchangerate-api.com/v6/${API_KEY}/latest`;
 
-// Populate dropdowns with currency codes
-for (let select of dropdowns) {
-  for (let currCode in countryList) {
-    let newOptions = document.createElement("option");
-    newOptions.innerText = currCode;
-    newOptions.value = currCode;
+// DOM elements
+const fromSelect = document.getElementById("from");
+const toSelect = document.getElementById("to");
+const fromFlag = document.getElementById("from-flag");
+const toFlag = document.getElementById("to-flag");
+const amountInput = document.getElementById("val");
+const resultDiv = document.getElementById("result");
+const btn = document.getElementById("btn");
 
-    // Pre-select USD for 'from' and INR for 'to'
-    if (select.name === "from" && currCode === "USD") {
-      newOptions.selected = "selected";
-    } else if (select.name === "to" && currCode === "INR") {
-      newOptions.selected = "selected";
+// Populate dropdowns
+async function populateCurrencies() {
+    try {
+        const response = await fetch(`${API_URL}/USD`);
+        const data = await response.json();
+
+        if (data.result !== "success") throw new Error("API error");
+
+        const currencies = Object.keys(data.conversion_rates);
+
+        // Clear old options
+        fromSelect.innerHTML = "";
+        toSelect.innerHTML = "";
+
+        currencies.forEach(curr => {
+            const option1 = document.createElement("option");
+            option1.value = curr;
+            option1.text = curr;
+            fromSelect.appendChild(option1);
+
+            const option2 = document.createElement("option");
+            option2.value = curr;
+            option2.text = curr;
+            toSelect.appendChild(option2);
+        });
+
+        fromSelect.value = "USD";
+        toSelect.value = "INR";
+        updateFlag(fromSelect);
+        updateFlag(toSelect);
+    } catch (err) {
+        console.error(err);
+        resultDiv.innerText = "Error loading currencies";
     }
-    select.append(newOptions);
-  }
-
-  // Add event listener to update flag when a currency is selected
-  select.addEventListener("change", (evt) => {
-    updateFlag(evt.target);
-  });
 }
 
-// Function to update the country flag
-const updateFlag = (element) => {
-  let currCode = element.value;
-  let countryCode = countryList[currCode] || "unknown"; // Fallback if country code not found
-  let newSrc = `https://flagsapi.com/${countryCode}/flat/64.png`;
-  let img = element.parentElement.querySelector("img");
-  img.src = newSrc;
-  img.alt = `Flag for ${currCode}`;
-};
-
-// Fetch and display the exchange rate
-async function fetchExchangeRate(event) {
-  try {
-    event.preventDefault();
-
-    // Get amount and validate input
-    let amount = document.querySelector("#val");
-    let amtValue = amount.value;
-    if (amtValue === "" || amtValue < 1) {
-      alert("Please enter a valid amount.");
-      return;
-    }
-
-    // Fetch exchange rate data
-    const URL = `${BASE_URL}/${fromCurr.value.toLowerCase()}/${toCurr.value.toLowerCase()}.json`;
-    let response = await fetch(URL);
-    if (!response.ok) throw new Error("Failed to fetch exchange rate.");
-
-    let data = await response.json();
-    let exchangeRate = data[toCurr.value.toLowerCase()];
-    if (!exchangeRate) throw new Error("Exchange rate data not available.");
-
-    // Display the result
-    let convertedValue = (amtValue * exchangeRate).toFixed(2);
-    alert(
-      `${amtValue} ${fromCurr.value} = ${convertedValue} ${toCurr.value}`
-    );
-  } catch (error) {
-    console.error("Error fetching exchange rate:", error);
-    alert("An error occurred while fetching the exchange rate. Please try again.");
-  }
+// Update flags
+function updateFlag(select) {
+    const code = select.value.toLowerCase();
+    const countryCode = countryList[code] || "US";
+    if (select === fromSelect) fromFlag.src = `https://flagsapi.com/${countryCode}/flat/64.png`;
+    else toFlag.src = `https://flagsapi.com/${countryCode}/flat/64.png`;
 }
 
-// Add event listener to the button
-btn.addEventListener("click", fetchExchangeRate);
+// Convert currency
+async function convertCurrency() {
+    const amount = parseFloat(amountInput.value);
+    const from = fromSelect.value;
+    const to = toSelect.value;
+
+    if (!amount || amount <= 0) {
+        alert("Enter a valid amount");
+        return;
+    }
+
+    if (from === to) {
+        resultDiv.innerText = `${amount} ${from} = ${amount} ${to}`;
+        return;
+    }
+
+    resultDiv.innerText = "Converting...";
+
+    try {
+        const res = await fetch(`${API_URL}/${from}`);
+        const data = await res.json();
+
+        if (data.result !== "success") throw new Error("Failed to fetch rate");
+
+        const rate = data.conversion_rates[to];
+        const converted = (amount * rate).toFixed(2);
+
+        resultDiv.innerText = `${amount} ${from} = ${converted} ${to} (Rate: 1 ${from} = ${rate.toFixed(4)} ${to})`;
+    } catch (err) {
+        console.error(err);
+        resultDiv.innerText = "Error fetching exchange rate";
+    }
+}
+
+// Event listeners
+fromSelect.addEventListener("change", () => updateFlag(fromSelect));
+toSelect.addEventListener("change", () => updateFlag(toSelect));
+btn.addEventListener("click", convertCurrency);
+
+// Initialize
+populateCurrencies();
